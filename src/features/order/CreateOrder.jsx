@@ -1,3 +1,6 @@
+import { Form, redirect, useNavigation } from "react-router-dom";
+import { createOrder } from "../../services/apiRestaurant";
+
 // https://uibakery.io/regex-library/phone-number
 const isValidPhone = (str) =>
   /^\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}$/.test(
@@ -30,13 +33,16 @@ const fakeCart = [
 
 function CreateOrder() {
   // const [withPriority, setWithPriority] = useState(false);
+  const navigation = useNavigation();
+  const isSubmiting = navigation.state === "submitting";
   const cart = fakeCart;
 
   return (
     <div>
       <h2>Ready to order? Let's go!</h2>
 
-      <form>
+      {/* <Form method="POST" action="/order/new"> */}
+      <Form method="POST">
         <div>
           <label>First Name</label>
           <input type="text" name="customer" required />
@@ -68,11 +74,32 @@ function CreateOrder() {
         </div>
 
         <div>
-          <button>Order now</button>
+          <input type="hidden" name="cart" value={JSON.stringify(cart)} />
+          {/* Šitiokiu būdu į formą įdedam ir fakeCart masyvą su jame esančia prekių
+          krepšelio informaciją. Prieš tai krepšelį paverčiam tekstu naudodami JSON.stringify(cart), paskui kai išsitrauksime visą formos informaciją, krepšelį atversime į masyvą naudodami JSON.parse */}
+          <button disabled={isSubmiting}>
+            {isSubmiting ? "Placing order..." : "Order now"}
+          </button>
         </div>
-      </form>
+      </Form>
     </div>
   );
 }
 
+export async function action({ request }) {
+  const formData = await request.formData();
+  const data = Object.fromEntries(formData);
+
+  const order = {
+    ...data,
+    cart: JSON.parse(data.cart),
+    priority: data.priority === "on",
+  };
+
+  //sukuriam naują objektą order, jame išspredinam formos informaciją, ir perrašome keletą dalykų. Pirmiausia, cart vel paverciame masyvu, o priority key sukuriame true arba false reiksmę. Jei data.priority === “on” bus tiesa, jei ne, false. O tai keiciasi priklausomai nuo to ar paspaudi ant checkbox.
+
+  const newOrder = await createOrder(order); //Čia padaromas dvigubas darbas. Į apiRestaurant esančia funkciją createOrder(Kuri priima mūsų sukurta orderį ir išsiunčia jį į API, bet tuo pačiu jį iškart ir grąžiną) išsiunčia order, ir iškart gražina mums tą patį objektą, bet jau iš api. Todėl jį išsaugom newOrder kintamajame ir uzdedam await, nes reikia turputi palaukti, kol orderis grįš iš Api.
+
+  return redirect(`/order/${newOrder.id}`); //Čia padarėme, kad ši funkcija atlikusi visus jai priskirtus darbus - galų gale mus nukreiptų į naujai sukurto orderio puslapį. Naudotume useNavigate, tačiau negalim ,nes hookai gali būti naudojami tik komponentuose, o cia funkcija.
+}
 export default CreateOrder;
